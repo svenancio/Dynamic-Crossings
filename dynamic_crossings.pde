@@ -8,29 +8,30 @@ by Grupo Realidades
 
 import processing.video.*;
 
-//é necessário incluir esta biblioteca indo em Sketch > Import Library > Add Library. 
-//Daí procure pela biblioteca BlobDetection 
+//this next import must be activated first. Go to Sketch > Import Library > Add Library. 
+//Then search for "BlobDetection" library and add it to your Processing IDE.
 import blobDetection.*;
 
 
-int screenW = 1024;
+int screenW = 1366;//1024;
 int screenH = 768;
 Capture cam;
 BlobDetection theBlobDetection;
 PImage img;
-int timenow;
-int maxtimenow = 86400;//24 horas convertidas em segundos
-int tone;
-int zStep = 500;//define o intervalo em pixels entre uma iteração e outra de profundidade do desenho
-int animaCount;
+float timenow;
+float maxtimenow = 86400;//24 hours converted in seconds
+float tone;
+int zStep = 500;//this defines the pixel interval between depth iterations of this sketch 
+float animaCount;
 
 void setup()
 {
-  // Tamanho da projeção em pixels
-  size(1024, 768, P3D);//16:9
-  //fullscreen();
-  //descomente o código a seguir pra que o Console produza uma lista 
-  //de câmeras e seja identificado o nome de uma para preencher depois
+  //Change this to define screen size
+  size(1366, 768, P3D);//16:9
+  //smooth(4);
+
+  //uncomment the following code to obtain a list of detected cameras in Console 
+  //Choose one and copy its name or dimensions to the Capture function 
   //String[] cameras = Capture.list();
   //if (cameras.length == 0) {
   //  println("There are no cameras available for capture.");
@@ -42,34 +43,33 @@ void setup()
   //  }    
   //}
   
-  //inicia a captura da música
+  //starts capturing video
   cam = new Capture(this, 800, 600);//, "Logitech HD Pro Webcam C920");
   cam.start();
   animaCount = 0;
-  // Detecção dos blobs
-  // usamos uma imagem reduzida para minimizar as informações dos blobs
+  
+  //Blob Detection
+  //we use a small camera source in order to minimize blob flickering
   img = new PImage(screenW/10,screenH/10); 
   theBlobDetection = new BlobDetection(img.width, img.height);
-  //altere true ou false para detectar áreas claras (true) ou áreas escuras (false)
+  //change between true or false to detect bright areas(true) or dark areas (false)
   theBlobDetection.setPosDiscrimination(true);
-  //altere o parâmetro para alterar a percepção dos blobs
+  //change the parameter to set blob perception sensitiveness
   theBlobDetection.setThreshold(0.3f);
 }
 
 void draw() 
-{ 
-  //calculo do horário somando todos os segundos do dia
+{   
+  //calculates time by summing every second of the day
   timenow = hour()*3600 + minute()*60 + second();
-  timenow = animaCount;maxtimenow = 7200;
-  animaCount++;
-  if (animaCount >= maxtimenow) animaCount = 0;
-  //translate para centralizar o referencial de desenho
-  translate(screenW/2,screenH/2,zStep);
+  //timenow = animaCount;maxtimenow = 7200.0;
+  //animaCount++;
+  //if (animaCount >= maxtimenow) animaCount = 0;
 
-  //pinta o fundo conforme o tempo passa: 
-  //até 6 da manhã (21600 segundos) - escuro
-  //ao meio dia - totalmente claro
-  //após 6 da tarde (64800 segundos) - escuro
+  //paint the background as time pass by 
+  //up to 6 o'clock (21600 seconds) - total dark
+  //up to midday - total bright
+  //after 18 o'clock (64800 seconds) - total dark
   if(timenow > maxtimenow/4 && timenow <= maxtimenow/2) {
     tone = 255*(timenow-maxtimenow/4)/(maxtimenow/4);
   }else if(timenow > maxtimenow/2 && timenow < 3*maxtimenow/4) {
@@ -79,19 +79,25 @@ void draw()
   }
   background(tone);
   
-  //Detecção dos blobs 
+  pushMatrix();
+  //translate to center the drawing origin
+  translate(screenW/2,screenH/2,zStep);
+  
+  //Blob detection every draw() iteration 
   img.copy(cam, 0, 0, cam.width, cam.height, 0, 0, img.width, img.height);//reduz a fonte da câmera para a imagem a ponto de "resumir" a informação e facilitar a detecção de blobs
   fastblur(img, 2);//blur necessário para eliminar ruídos da câmera que gerariam blobs indesejáveis 
   theBlobDetection.computeBlobs(img.pixels);//detecta os blobs e armazena numa lista
   
-  pushMatrix();
+  //draw towers for each blob detected
   drawBlobTowers();
   popMatrix();
+  
+  //draw clock
+  drawClock();
 }
 
-//função que desenha uma torre para cada blob detectado pela câmera,
-//com ponto de fuga definido conforme horário do dia
-
+//Drawing function to draw a tower with vanishing point towards 
+//an angle defined by the current time
 void drawBlobTowers()
 {
   Blob b, c;
@@ -100,33 +106,33 @@ void drawBlobTowers()
   
   rotateY((timenow*PI/maxtimenow)-(PI/2));
   
-  //loop externo: repete desenho ao longo da profundidade z
+  //external loop: repeats drawing along z depth
   for(int i=0;i<10;i++) {
-    //muda a cor do desenho conforme ele se aprofunda
+    //the color of the tower changes as it gets far
     stroke(18*i+10,18*i+10,18*i+10);
     
-    //loop interno: desenha caixas e interliga os centros com linhas
+    //internal loop: draw boxes and connects their centres with lines
     for(int j=0; j<blobCount; j++)
     {
-      b=theBlobDetection.getBlob(j);//obtém o blob da vez
+      b=theBlobDetection.getBlob(j);
       
       pushMatrix();
-      translate(b.x*screenW - screenW/2,b.y*screenH - screenH/2,0);//translada a posição conforme a posição do blob
-      herveoBox(500,'z');//desenha o box
-      line(0,0,0,0,0,-zStep);//desenha uma linha que liga à próxima caixa ao longo do eixo z
+      translate(b.x*screenW - screenW/2,b.y*screenH - screenH/2,0);//set the drawing origin according to blob position
+      herveoBox(500,'z');//draws the box
+      line(0,0,0,0,0,-zStep);//draws a line towards the next box throughout z axis
       popMatrix();
     }
     
     noFill();
-    //inicia o desenho interligando o centro de cada caixa criada
+    //draws a polygon connecting each box drawn
     beginShape();
     for(int j=0; j<blobCount; j++)
     {
-      b=theBlobDetection.getBlob(j);//para cada blob...
-      //desenha um vértice, interligando ao anterior
+      b=theBlobDetection.getBlob(j);//for each blob...
+      //draws a vertex, connecting it to the previous one
       vertex(b.x*screenW - screenW/2,b.y*screenH - screenH/2,0);
       
-      //caso chegue ao final, conecta o último ao primeiro vértice
+      //when it reaches the end, connect the last vertex to the first one
       if(j==blobCount-1){
         c = theBlobDetection.getBlob(0);
         vertex(c.x*screenW - screenW/2,c.y*screenH - screenH/2,0);
@@ -134,16 +140,17 @@ void drawBlobTowers()
     }
     endShape();
     
-    //translada a profundidade para repetir o processo
+    //translates towards the z-axis to repeat this whole process
     translate(0,0,-zStep);
   }
 }
 
-//cria um box com estruturas diagonais semelhantes a estrutura da Herveo Tower
+//creates a box with diagonal structures, ressembling Herveo Tower
 void herveoBox(int size, char type)
 {
-  box(size);//cria uma caixa
+  box(size);//creates a 3D box
 
+  //draws diagonals
   if(type != 'x') {
     line(-size/2, -size/2, -size/2, -size/2, size/2, size/2);
     line(size/2, -size/2, size/2, size/2, size/2, -size/2);
@@ -158,8 +165,43 @@ void herveoBox(int size, char type)
   }
 }
 
+
 void drawClock() {
+  hint(DISABLE_DEPTH_TEST);//this command puts the interface in front of 3D rendering
+  pushMatrix();
+  translate(50,screenH-15,0);
   
+  //draws the max arc
+  beginShape();
+  fill(50);
+  strokeWeight(1);
+  stroke(0);
+  arc(0, 0, 70, 70, PI, 2*PI, CHORD);
+  endShape();
+  
+  //draws a partial arc according to current time
+  beginShape();
+  noStroke();
+  fill(200);
+  arc(0, 0, 70, 70, 2*PI - PI*(timenow/maxtimenow), 2*PI, PIE);
+  println(timenow/maxtimenow);
+  endShape();
+  
+  //creates clock text
+  fill(0);
+  textSize(18);
+  textAlign(CENTER);
+  float hours = timenow/(maxtimenow/24);
+  float minutes = (timenow % (maxtimenow/24)) / (maxtimenow/1440);
+  if(minutes < 10) {
+    text((int)hours+":0"+(int)minutes, 0, -5);
+  }else{
+    text((int)hours+":"+(int)minutes, 0, -5);
+  }
+  noFill();
+  
+  popMatrix();
+  hint(ENABLE_DEPTH_TEST);//returns to 3D rendering
 }
 
 
