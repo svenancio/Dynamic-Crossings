@@ -6,7 +6,8 @@ by Grupo Realidades
 ===================
 */
 
-import processing.video.*;
+//import processing.video.*;
+import ipcapture.*;
 
 //this next import must be activated first. Go to Sketch > Import Library > Add Library. 
 //Then search for "BlobDetection" library and add it to your Processing IDE.
@@ -15,20 +16,23 @@ import blobDetection.*;
 
 int screenW = 1366;//1024;
 int screenH = 768;
-Capture cam;
+IPCapture cam;
 BlobDetection theBlobDetection;
 PImage img;
-float timenow, halfmaxtime;
+float timenow;
 float maxtime = 86400;//24 hours converted in seconds
+float halfmaxtime;
 float tone;
 int zStep = 500;//this defines the pixel interval between depth iterations of this sketch 
 float animaCount;
+float disconnectionCount;
 
 void setup()
 {
   //Change this to define screen size
-  size(1366, 768, P3D);//16:9
+  //size(1366, 768, P3D);//16:9
   //smooth(4);
+  fullScreen(P3D, SPAN);
 
   //uncomment the following code to obtain a list of detected cameras in Console 
   //Choose one and copy its name or dimensions to the Capture function 
@@ -44,23 +48,44 @@ void setup()
   //}
   
   //starts capturing video
-  cam = new Capture(this, 800, 600);//, "Logitech HD Pro Webcam C920");
+  //cam = new Capture(this, 800, 600);//, "Logitech HD Pro Webcam C920");
+  
+  //For IP Cameras, it's necessary to find the correct url of streaming. 
+  cam = new IPCapture(this,"http://192.168.25.9/video2.mjpg", "admin","grealidades");
   cam.start();
-  animaCount = 0;
+  
   halfmaxtime = maxtime/2;
+  animaCount = 0;
+  disconnectionCount = 0;
   
   //Blob Detection
   //we use a small camera source in order to minimize blob flickering
   img = new PImage(screenW/10,screenH/10); 
   theBlobDetection = new BlobDetection(img.width, img.height);
   //change between true or false to detect bright areas(true) or dark areas (false)
-  theBlobDetection.setPosDiscrimination(true);
+  theBlobDetection.setPosDiscrimination(false);
   //change the parameter to set blob perception sensitiveness
-  theBlobDetection.setThreshold(0.3f);
+  theBlobDetection.setThreshold(0.5f);
 }
 
 void draw() 
 {   
+  //reads camera information and put it available
+  if(cam.isAvailable()) {
+    cam.read();
+    disconnectionCount = 0;
+  }
+  else
+  {
+    disconnectionCount++;
+    if(disconnectionCount >= 150) {
+      disconnectionCount = 0;
+      println("Disconnection. Attempting to reconnect");
+      cam.stop();
+      cam.start();
+    }
+  }
+  
   //calculates time by summing every second of the day
   timenow = hour()*3600 + minute()*60 + second();
   //timenow = animaCount;maxtime = 1800.0;halfmaxtime = maxtime/2;
@@ -103,6 +128,7 @@ void drawBlobTowers()
 {
   Blob b, c;
   int blobCount = theBlobDetection.getBlobNb();//contagem de blobs
+  
   strokeWeight(6);
   
   rotateY((timenow*PI/maxtime)-(PI/2));
